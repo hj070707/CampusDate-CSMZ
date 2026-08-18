@@ -357,3 +357,124 @@ git push -u origin main
 
 > 💡 上线前可以再跑一次 `git status`，确认下列文件 **不会** 被提交：
 > `database.sqlite` · `.env` · `node_modules/` · `client/dist/` · `*.log`
+
+---
+
+## 🌍 部署公开 Demo（强烈推荐 · 零绑卡方案）
+
+> Render / Vercel 部分新账号会被风控强制要求绑定信用卡验证。如果你不想绑卡，这套方案 **100% 不需要信用卡**，而且 Replit 后端的 SQLite 磁盘还是持久化的（Render 免费档反而会在重启后清空数据库），对作品集展示更稳。
+
+### 总体架构
+```
+用户 → Cloudflare Pages（前端：SPA + 全球 CDN，零绑卡）
+              │
+              └─── fetch(Replit 后端域名) ──→ Replit（Node.js + SQLite 持久化磁盘，零绑卡）
+```
+
+### 第一步：先部署后端（Replit）
+
+1. 打开 https://replit.com → 用 GitHub 直接登录（零绑卡、零手机号可选）
+2. 右上角 **Create Repl**：
+   | 字段 | 填什么 |
+   |---|---|
+   | **Template** | Node.js |
+   | **Title** | `campusdate-csmz-backend` |
+   | **Import from GitHub** | ⚠️ 直接填：`https://github.com/hj070707/CampusDate-CSMZ` |
+3. Repl 创建好后，在右侧 / 上方找到 **Shell**（终端）打开，执行：
+   ```bash
+   # 1. 进入 server 目录
+   cd server
+
+   # 2. 安装依赖 + 初始化数据库 + 塞 25 道题
+   npm install
+   npm run init-db
+   npm run seed-questions
+
+   # 3. 可选：快速塞 3 个测试用户（便于立刻验证匹配结果页）
+   cd ..   # 回到项目根（seed-3users-survey.js 以 server/ 内 require 路径为相对）
+   node server/seed-3users-survey.js
+   ```
+4. 左侧找到 **Secrets**（🔒 锁图标 → Environment Variables），添加 3 条：
+   | Key | Value |
+   |---|---|
+   | `NODE_ENV` | `production` |
+   | `SESSION_SECRET` | 点 **Generate secret** 自动生成一个长随机串（不要用默认值！）|
+   | `CORS_ORIGINS` | 先**留空**，等拿到 Cloudflare Pages 的前端域名之后再回来填 |
+   | `PORT` | `8080` |
+5. 顶部把主文件切换为 **Run with Shell**，然后在右上 **Configure**（齿轮）里修改：
+   - **Run command**：`cd server && node server.js`
+   - **Root directory**：保持默认 `/home/runner/CampusDate-CSMZ` 就行
+6. 点 **Run**（▶️）。Replit 运行后会分配一个公开域名，地址栏能看到，形如：
+   ```
+   https://campusdate-csmz-backend.你的用户名.repl.co
+   ```
+   👉 **把这个地址复制下来，这就是后端 API 基础地址**。在浏览器访问 `https://<你的后端>/api/school/info`，能看到返回 JSON（含"长沙民政职业技术学院"）就是成功了。
+
+### 第二步：部署前端（Cloudflare Pages）
+
+1. 打开 https://pages.cloudflare.com → **Create a project** → **Connect to Git**（零绑卡，绑 GitHub 账号即可）
+2. 选仓库 **hj070707/CampusDate-CSMZ**，点 **Begin setup**：
+   | 字段 | 填什么 |
+   |---|---|
+   | **Project name** | `campusdate-csmz`（决定了子域名） |
+   | **Production branch** | `main` |
+   | **Framework preset** | 选 **Vite** |
+   | **Build command** | `cd client && npm install && npm run build` |
+   | **Build output directory** | `client/dist` |
+3. 展开 **Environment variables (advanced)**，加一条：
+   | Variable name | Value |
+   |---|---|
+   | `VITE_API_URL` | 你第一步在 Replit 拿到的后端地址，**末尾不要加斜杠**，例如 `https://campusdate-csmz-backend.你的用户名.repl.co` |
+4. 点 **Save and Deploy**，等 1–2 分钟 build 完成，拿到 Cloudflare 的公开域名，形如：
+   ```
+   https://campusdate-csmz.pages.dev
+   ```
+
+### 第三步：收尾加固（强烈建议）
+
+1. **Replit 白名单 CORS**（防他人网站乱调你的后端）
+   回到 Replit → Secrets，给 `CORS_ORIGINS` 填：
+   ```
+   https://campusdate-csmz.pages.dev,http://localhost:5173
+   ```
+   多个用英文逗号分隔。Save 后**点 Restart**重启后端生效。
+
+2. **Replit 免费实例约 1 小时无请求会休眠**，可以用 https://uptimerobot.com/ 免费计划设置 30 分钟 ping 一次你的 Replit `/api/school/kpi` 接口，让它不被休眠。
+
+3. **把两个链接贴回 README 或作品集**：
+   - 前端 Demo：`https://campusdate-csmz.pages.dev`
+   - GitHub 源码：`https://github.com/hj070707/CampusDate-CSMZ`
+
+### 测试账号（如已执行 seed-3users-survey.js）
+
+| 邮箱（@csmzxy.edu.cn） | 密码 | 身份 |
+|---|---|---|
+| `test01` | `123456` | 普通用户 |
+| `test02` | `123456` | 普通用户 |
+| `admin` | `Admin@123456` | 超级管理员（`/admin` 后台） |
+
+---
+
+## 🌐 部署备选方案：Vercel + Render
+
+> ⚠️ Render 新账号可能强制要求绑定信用卡做"防滥用验证"。如果你愿意绑卡（验证不扣费），可以选这套，否则用上面的零绑卡方案。
+
+### 后端（Render）
+1. https://dashboard.render.com → **New** → **Web Service**：
+   - **Root Directory** = `server`
+   - **Runtime** = Node
+   - **Build Command** = `npm install && npm run init-db && npm run seed-questions`
+   - **Start Command** = `node server.js`
+   - **Environment Variables**：`NODE_ENV=production`、`SESSION_SECRET=<随机长串>`、`PORT=10000`、`CORS_ORIGINS=`（拿到 Vercel 域名后回填）
+2. 部署完成后获取后端地址，例如 `https://campusdate-csmz-backend.onrender.com`
+
+> ❗ Render 免费档 SQLite 不会持久化（重启/redeploy 就清空），仅适合短期演示。
+
+### 前端（Vercel）
+1. https://vercel.com/new → 导入 `hj070707/CampusDate-CSMZ`：
+   - **Framework** = Vite（已由 `client/vercel.json` 声明）
+   - **Root Directory** = `client`
+   - **Environment Variables**：`VITE_API_URL = <Render 后端地址>`
+2. 部署完成后拿到 `https://xxx.vercel.app`，填回 Render 的 `CORS_ORIGINS`。
+
+---
