@@ -1,0 +1,21 @@
+{
+  "name": "campusdate-server",
+  "version": "0.2.0",
+  "description": "CampusDate CSMZ 后端服务（Render 独立部署入口）",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "init-db": "node db.js",
+    "seed-questions": "node init-questions.js",
+    "match:now": "node -e \"require('./match-algo').runMatching().then(r=>console.log(r)).catch(e=>console.error(e))\""
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "node-cron": "^3.0.3",
+    "sqlite3": "^5.1.7"
+  }
+}

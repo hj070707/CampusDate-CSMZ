@@ -11,7 +11,7 @@ const adminRoutes = require('./routes/admin');
 const profileRoutes = require('./routes/profile');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 
 // 站点信息 —— 民政学院专属
 const SCHOOL = {
@@ -26,8 +26,20 @@ const SCHOOL = {
   cron: '0 12 * * 1'
 };
 
+// CORS origin 白名单：用 CORS_ORIGINS 环境变量逗号分隔传入（例如 https://campusdate-csmz.vercel.app,http://localhost:5173）
+// 未设置时默认放行（开发 + 首次部署零配置），生产环境建议显式设置，仅允许 Vercel 域访问
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
+  : null;
+
 app.use(cors({
-  origin: true,
+  origin: allowedOrigins
+    ? ((origin, callback) => {
+        // 允许未带 origin 的请求（如 SSR / curl）以及白名单内的域名
+        if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error(`CORS blocked: ${origin} not in CORS_ORIGINS`));
+      })
+    : true,
   credentials: true
 }));
 app.use(express.json());

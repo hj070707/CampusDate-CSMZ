@@ -1,0 +1,24 @@
+# Render 自动部署配置（Blueprints）
+# 在 Render Dashboard → Blueprints → New Blueprint Instance 选择此仓库即可一键创建
+# 或手动创建 Web Service 时：Root Directory = server, Build = npm install, Start = node server.js
+
+services:
+  - type: web
+    name: campusdate-csmz-backend
+    runtime: node
+    region: singapore
+    plan: free
+    rootDir: server
+    buildCommand: "npm install && npm run init-db && npm run seed-questions"
+    startCommand: "node server.js"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true   # Render 自动生成强随机密钥
+      - key: PORT
+        value: "10000"
+      # 拿到 Vercel 部署的前端域名后，填到这里（多个用英文逗号分隔）
+      # 例：https://campusdate-csmz.vercel.app,http://localhost:5173
+      - key: CORS_ORIGINS
+        sync: false
