@@ -360,98 +360,131 @@ git push -u origin main
 
 ---
 
-## 🌍 部署公开 Demo（强烈推荐 · 零绑卡方案）
+## 🌍 部署公开 Demo（推荐）
 
-> Render / Vercel 部分新账号会被风控强制要求绑定信用卡验证。如果你不想绑卡，下面这套方案 **100% 不需要信用卡**，而且 **Glitch 后端的 SQLite 磁盘是持久化的**（Render / Railway 免费档反而会在重启后清空数据库），对作品集展示最稳。
+> 🚨 **重要（2025.07 更新）**：Glitch 官方已于 2025 年 7 月宣布结束项目托管服务（"Until we meet again 👋"），新用户无法注册/新建项目，本方案已**不再使用 Glitch**。
+>
+> Render 新账号会被风控强制要求绑信用卡"防滥用验证"，如果你不想绑卡，下面两套方案都不需要信用卡。
 
-### 总体架构
+---
+
+### ⚡ 兜底最快方案（5 分钟拿到公开 URL · 零注册零部署）
+如果你今天就要拿作品集链接去面试，用这个 — **把你本地跑的项目直接暴露到公网**，不用注册任何平台：
+
+1. 确保你本地项目已经跑起来了（`e:\lover\start.bat` 或两个终端：`server/npm start` + `client/npm run dev`）
+2. 新开 **PowerShell（管理员）** 执行：
+   ```powershell
+   # 安装 Cloudflared（官方零绑卡、零注册内网穿透）
+   winget install --id Cloudflare.cloudflared -e
+   ```
+3. 再新开 **两个 PowerShell 窗口**，分别执行：
+   ```powershell
+   # 窗口 A：把后端 3000 端口暴露公网
+   cloudflared tunnel --url http://localhost:3000
+   # 会输出形如  https://xx-yy-zz.trycloudflare.com  👉 这就是后端公开地址
+   ```
+   ```powershell
+   # 窗口 B：把前端 5173 端口暴露公网
+   cloudflared tunnel --url http://localhost:5173
+   # 会输出形如  https://aa-bb-cc.trycloudflare.com  👉 这就是前端公开地址
+   ```
+4. 把这两个链接粘给面试官就能点进去。
+
+> 限制：你电脑要一直开着项目别关。面试完关掉这两个窗口隧道就断开了，非常安全。
+> （SQLite 数据持久、也没有冷启动，访问最快。）
+
+---
+
+### 🅰️ 首推方案：Railway + Cloudflare Pages（体验最接近 Render · 额度够面试 2 个月）
+
+**Railway 新用户有 $5 免费信用额度（无需绑卡）**，$5 用完才要求付费或绑卡，对作品集 1–2 个月面试窗口绰绰有余。SQLite 在免费档重启不持久化（跟 Render 一样），但演示完全够用。
+
+#### 总体架构
 ```
-用户 → Cloudflare Pages（前端 SPA + 全球 CDN，零绑卡）
+用户 → Cloudflare Pages（前端 SPA + 全球 CDN · 零绑卡）
               │
-              └─── fetch(Glitch 后端域名) ──→ Glitch（Node.js + SQLite 持久化磁盘，GitHub 登录零绑卡）
+              └─── fetch(Railway 域名) ──→ Railway（Node.js · $5 免费额度 · 无需绑卡）
 ```
 
-### 第一步：先部署后端（Glitch · 100% 零绑卡 + SQLite 持久化）
-
-1. 打开 **https://glitch.com** → 右上角 **Sign up / Sign in** → **Continue with GitHub**（零绑卡、零手机号，最稳妥）
-2. 登录后首页右上角 **New Project** → 选最底部 **Import from GitHub**（或"Import repo from GitHub"）
-3. 弹出对话框里粘仓库地址：
+#### 第一步：先部署 Railway 后端（拿到 .up.railway.app 域名）
+1. **打开 https://railway.app/new → Sign up with GitHub（零绑卡）**
+2. 进控制台后点 **+ New Project → Deploy from GitHub repo**
+3. 首次会让你授权 GitHub，选 **hj070707/CampusDate-CSMZ**
+4. 仓库导入成功后会**自动开始一次失败的构建**（因为默认从根目录构建，找不到 server/），不要慌 — 点进去这个 Service：
+   - 切 **⚙️ Settings** 标签：
+     | 字段 | 值 |
+     |---|---|
+     | Root Directory | `server` ⚠️ |
+     | Build Command | `npm install && npm run init-db && npm run seed-questions` |
+     | Start Command | `node server.js` |
+   - 切 **Variables** 标签 → Add Variable，加：
+     ```
+     NODE_ENV       = production
+     SESSION_SECRET = 点击右侧 Generate 生成长随机串
+     CORS_ORIGINS   = 留空，等 Cloudflare Pages 域名拿到再填
+     ```
+5. 右上点 **Redeploy**，等 2–4 分钟。构建成功后点 Service 顶部的 **Settings → Networking → Generate Domain**（或 Public Networking）生成公网域名，形如：
    ```
-   https://github.com/hj070707/CampusDate-CSMZ
+   campusdate-csmz-production.up.railway.app
    ```
-   点 **OK / Import**，等待 30–60 秒拉完代码，会自动进入项目代码页。
-4. 打开 **Terminal**（底部栏 Tools 菜单里 → **Terminal**，没看到的话点左下角的 "Terminal" 按钮），粘贴以下命令依次执行：
-   ```bash
-   # 进入后端目录装依赖 + 初始化数据库 + 注入 25 道题
-   cd server
-   npm install
-   npm run init-db
-   npm run seed-questions
+   👉 **把这个域名复制下来**，浏览器访问 `https://<这个域名>/api/school/info`，返回 JSON 含"长沙民政职业技术学院"就成功了 ✅。
 
-   # （可选）塞 3 个测试账号，立刻就能体验匹配结果页
-   cd ..
-   node server/seed-3users-survey.js
-   ```
-5. 设置环境变量：左下角 **⚙︎ Tools** → **Environment Variables** → 打开后点 **Add a Variable** 添加：
-   | Key | Value |
-   |---|---|
-   | `NODE_ENV` | `production` |
-   | `SESSION_SECRET` | 自己输入一串长随机字符（比如 `campusdate-csmz-1234567890-随机`），不要用默认值！ |
-   | `CORS_ORIGINS` | 先**留空**，等拿到 Cloudflare Pages 前端域名再回来填 |
-   | `PORT` | `3000` |
-
-   > 如果 Tools → Environment Variables 里的变量没被自动注入（Glitch 偶尔会延迟生效），就再加一条兜底：
-   > 在 Terminal 里执行 `cd server && echo "SESSION_SECRET=你刚才的那串长字符" >> .env && cat .env`
-6. 左上角项目名旁边点 **Share** → 把 **Live App** 那串 URL 复制下来，形如：
-   ```
-   https://<随机英文单词串>.glitch.me
-   ```
-7. **验证后端**：在浏览器新开标签，访问 `https://<你的.glitch.me域名>/api/school/info`，能看到返回 JSON 里有 `"name":"长沙民政职业技术学院"` 就算部署成功 ✅。如果是"Loading project"等一下就好。
-
-> ❗ **小提示**：Glitch 免费实例 5 分钟没人访问会休眠，下次访问需要冷启动 5–10 秒。面试官打开时看到一次"慢"很正常，你可以在 README 里加一句「演示版为免费实例，首开冷启动 5 秒内恢复」。想一直在线可用 UptimeRobot 免费 30 分钟心跳 ping 一次。
-
-### 第二步：部署前端（Cloudflare Pages · 100% 零绑卡）
-
-1. 打开 **https://pages.cloudflare.com** → **Create a project** → **Connect to Git**（用 GitHub 授权，零绑卡）
-2. 选仓库 **hj070707/CampusDate-CSMZ**，点 **Begin setup**：
+#### 第二步：部署 Cloudflare Pages 前端（拿到 .pages.dev 域名）
+1. **打开 https://pages.cloudflare.com → Create a project → Connect to Git（GitHub 授权，零绑卡）**
+2. 选仓库 `hj070707/CampusDate-CSMZ` → Begin setup：
    | 字段 | 填什么 |
    |---|---|
-   | **Project name** | `campusdate-csmz`（最终域名会是 `campusdate-csmz.pages.dev`） |
-   | **Production branch** | `main` |
-   | **Framework preset** | 选 **Vite** |
-   | **Build command** | `cd client && npm install && npm run build` |
-   | **Build output directory** | `client/dist` |
-3. 展开 **Environment variables (advanced)** → 点 **Add variable**：
-   | Variable name | Value |
-   |---|---|
-   | `VITE_API_URL` | 你第一步从 Glitch 拿到的后端地址，**末尾不要加 `/`**，例如 `https://word-word-1234.glitch.me` |
-4. 点 **Save and Deploy**，等 1–2 分钟 build 完成，拿到 Cloudflare 域名：
+   | Framework preset | **Vite** |
+   | Build command | `cd client && npm install && npm run build` |
+   | Build output directory | `client/dist` |
+3. Environment variables (advanced) → Add：
    ```
-   https://campusdate-csmz.pages.dev
+   VITE_API_URL = https://<你刚才拿到的 Railway 域名>    （末尾不要加 /）
    ```
-   （如果项目名冲突就换一个，比如 `campusdate-csmz-2026`）
+4. Save and Deploy，2 分钟拿到 `https://campusdate-csmz.pages.dev`（项目名冲突换个后缀就行）。
 
-### 第三步：收尾加固（强烈建议）
-
-1. **Glitch CORS 白名单**（防止他人网站乱调你的后端）
-   回到 Glitch 项目 → **Tools → Environment Variables**，把刚才留空的 `CORS_ORIGINS` 填上：
-   ```
-   https://campusdate-csmz.pages.dev,http://localhost:5173
-   ```
-   （把第一个值换成你自己的 Cloudflare Pages 正式域名，逗号分隔，不要加空格）。Save 后回到 Terminal 点"Refresh App"或直接在 Tools → Logs 里重启。
-
-2. **防休眠心跳**（可选但推荐）：
-   打开 **https://uptimerobot.com** → 注册免费账户 → **Add new monitor**：
-   - Monitor Type: **HTTP(s)**
-   - URL: `https://<你的glitch域名>.glitch.me/api/school/kpi`
-   - Monitoring Interval: **Every 30 minutes**
-   保存后 UptimeRobot 会每 30 分钟访问一次你的后端，保持它不被休眠。
-
-3. **把链接贴到作品集 / README**：
+#### 第三步：收尾加固
+1. 回到 Railway → Variables，`CORS_ORIGINS` 填：`https://campusdate-csmz.pages.dev,http://localhost:5173`，然后 Redeploy 生效。
+2. 可选防休眠：**https://uptimerobot.com**（免费账户）→ 新建 HTTP Monitor，URL 填 `https://<Railway域名>/api/school/kpi`，Interval 选 Every 30 分钟。
+3. 把两个链接贴到作品集：
    - 前端 Demo：`https://campusdate-csmz.pages.dev`
    - GitHub 源码：`https://github.com/hj070707/CampusDate-CSMZ`
 
-### 测试账号（如已执行 `node server/seed-3users-survey.js`）
+---
+
+### 🅱️ 零绑卡备选：Koyeb + Cloudflare Pages（真·零绑卡）
+
+如果 Railway 注册也被风控了，用 **Koyeb**：它有免费档（Starter），**100% 不需要绑卡**，是目前零绑卡全栈部署最稳的。
+
+#### 后端（Koyeb）
+1. **https://app.koyeb.com/auth/signup → GitHub 登录** → 进控制台后 **Create Web Service**
+2. Source 选 **GitHub**，Repository 选 `hj070707/CampusDate-CSMZ`，Branch `main`
+3. Instance：
+   | 字段 | 值 |
+   |---|---|
+   | Instance size | **Starter（免费档，0.1 vCPU / 512MB 足够）** |
+   | Regions | 选 **Tokyo（日本，离国内近）** |
+   | Builder | **Nixpacks**（会自动识别 Node.js）|
+   | **Build command** | `cd server && npm install && npm run init-db && npm run seed-questions && cd ..` |
+   | **Run command** | `node server/server.js`（注意从根起，Nixpacks 会在根目录启动）|
+   | Environment variables | `NODE_ENV=production`、`SESSION_SECRET=<长随机串>`、`CORS_ORIGINS=`、`PORT=8080` |
+4. Advanced 里勾 **Publicly accessible**，点 **Deploy**，3–5 分钟拿到 `<自定义名>-<hash>.koyeb.app`，访问 `/api/school/info` 验证。
+5. 把这个域名填到 Cloudflare Pages 的 `VITE_API_URL`。
+
+> 📝 Koyeb Starter 档每月有免费小时数，用完会自动休眠，不会扣费。SQLite 同样非持久化，演示够用。
+
+---
+
+### 🅲️ 备选：Vercel + Render（仅当你愿意绑一张验证卡时用）
+
+Render 新用户现在强制"绑信用卡做防滥用验证"（仅验证，不扣费）。如果你愿意绑：
+
+- **Render 后端**：Root Directory = `server`，Runtime Node，Build = `npm install && npm run init-db && npm run seed-questions`，Start = `node server.js`，Env 加 `NODE_ENV / SESSION_SECRET / PORT=10000 / CORS_ORIGINS`
+- **Vercel 前端**：Root Directory = `client`，Framework = Vite，Env `VITE_API_URL` = Render 域名
+
+---
+
+### 🧪 测试账号（如部署时已执行 `seed-3users-survey.js`，或你自己跑了初始化）
 
 | 邮箱前缀（默认 @csmzxy.edu.cn） | 密码 | 身份 |
 |---|---|---|
@@ -459,43 +492,6 @@ git push -u origin main
 | `test02` | `123456` | 普通用户 |
 | `admin` | `Admin@123456` | 超级管理员（访问 `/admin` 后台） |
 
----
-
-## 🌐 部署备选方案 A：Railway + Cloudflare Pages
-
-> 说明：Railway 新用户有 **$5 免费试用额度（无需绑卡）**，耗尽才需要付费/绑卡。对作品集面试的 1–2 个月窗口完全够用。体验接近 Render，但 SQLite 仍然重启不持久化。
-
-### 后端（Railway）
-1. https://railway.app/new → GitHub 登录 → Deploy from GitHub repo → 选 `hj070707/CampusDate-CSMZ`
-2. Service Settings：
-   - **Root Directory** = `server`
-   - **Build Command** = `npm install && npm run init-db && npm run seed-questions`
-   - **Start Command** = `node server.js`
-3. Variables：`NODE_ENV=production`、`SESSION_SECRET=<生成随机长串>`、`CORS_ORIGINS=`（Cloudflare Pages 域名拿到再填）
-4. Redeploy，Service 页面会显示公网域名 `xxx.up.railway.app`，贴到 Cloudflare Pages 的 `VITE_API_URL`。
-
----
-
-## 🌐 部署备选方案 B：Vercel + Render
-
-> ⚠️ Render 新账号强制要求绑信用卡做"防滥用验证"。如果你愿意绑卡（仅验证，不扣费），可以选这套，否则用上面 Glitch / Railway 方案。
-
-### 后端（Render）
-1. https://dashboard.render.com → **New** → **Web Service**：
-   - **Root Directory** = `server`
-   - **Runtime** = Node
-   - **Build Command** = `npm install && npm run init-db && npm run seed-questions`
-   - **Start Command** = `node server.js`
-   - **Environment Variables**：`NODE_ENV=production`、`SESSION_SECRET=<随机长串>`、`PORT=10000`、`CORS_ORIGINS=`（拿到 Vercel 域名后回填）
-2. 部署完成后获取后端地址，例如 `https://campusdate-csmz-backend.onrender.com`
-
-> ❗ Render 免费档 SQLite 不会持久化（重启/redeploy 就清空），仅适合短期演示。
-
-### 前端（Vercel）
-1. https://vercel.com/new → 导入 `hj070707/CampusDate-CSMZ`：
-   - **Framework** = Vite（已由 `client/vercel.json` 声明）
-   - **Root Directory** = `client`
-   - **Environment Variables**：`VITE_API_URL = <Render 后端地址>`
-2. 部署完成后拿到 `https://xxx.vercel.app`，填回 Render 的 `CORS_ORIGINS`。
+> Railway / Koyeb 的免费档 SQLite 会在 redeploy / 重启时清空，如果注册完测试账号没了，是正常的 —— 重新在各自平台的 Shell/Console 里跑 `cd server && node server/seed-3users-survey.js` 即可。**这点面试时一定要说**，反而能体现你清楚"免费平台持久化"这个工程问题。
 
 ---
