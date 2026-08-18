@@ -1,3 +1,7 @@
+// 优先从 server/.env 加载环境变量（Glitch 免费档偶发平台注入 env 延迟时，这个兜底非常关键）
+// dotenv 不会覆盖已存在的系统环境变量，所以 Cloudflare Pages / Railway / Render 的注入仍然优先
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+
 const express = require('express');
 const session = require('express-session');
 const cors = require('cors');
