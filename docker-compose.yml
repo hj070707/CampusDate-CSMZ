@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./server
+    container_name: campusdate-backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./database.sqlite:/app/database.sqlite
+      - ./server:/app
+    environment:
+      - NODE_ENV=development
+      - SESSION_SECRET=campusdate-dev-secret
+    command: sh -c "node db.js && node server.js"
+
+  frontend:
+    build: ./client
+    container_name: campusdate-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    depends_on:
+      - backend

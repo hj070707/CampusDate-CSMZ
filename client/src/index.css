@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-50 text-gray-800;
+}
+@media (max-width: 640px) {
+  body { font-size: 14px; }
+  button, input, select, textarea { font-size: 16px !important; }
+}

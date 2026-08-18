@@ -1,0 +1,35 @@
+{
+  "name": "campusdate-csmz",
+  "version": "0.2.0",
+  "description": "CSMZ · 长沙民政职业技术学院专属校园匹配平台（开源作品集版本）",
+  "private": false,
+  "scripts": {
+    "dev": "concurrently -n server,client -c magenta,cyan \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "node server/server.js",
+    "dev:client": "cd client && npx vite",
+    "init-db": "node server/db.js",
+    "seed-questions": "node server/init-questions.js",
+    "match:now": "node -e \"require('./server/match-algo').runMatching().then(r=>console.log(r)).catch(e=>console.error(e))\"",
+    "build": "cd client && npm run build",
+    "start": "node server/server.js"
+  },
+  "keywords": [
+    "campus-date",
+    "dating-app",
+    "csmz",
+    "长沙民政职业技术学院",
+    "portfolio",
+    "open-source"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "concurrently": "^9.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "node-cron": "^3.0.3",
+    "sqlite3": "^5.1.7"
+  }
+}

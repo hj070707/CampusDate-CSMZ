@@ -1,0 +1,53 @@
+# ====================================
+#  CSMZ 校园匹配平台 — .gitignore
+#  开源版本发布准备
+# ====================================
+
+# ===== 依赖 =====
+node_modules/
+client/node_modules/
+server/node_modules/
+*/node_modules/
+
+# ===== 构建产物 =====
+dist/
+client/dist/
+build/
+client/build/
+*.tsbuildinfo
+.cache/
+
+# ===== 数据库 & 环境变量 =====
+*.sqlite
+*.sqlite3
+*.db
+database.sqlite
+database.sqlite-journal
+.env
+.env.*
+!.env.example
+
+# ===== 会话缓存 & 日志 =====
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs/
+
+# ===== 编辑器 & 系统 =====
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# ===== 进程 PID =====
+*.pid
+*.seed
+*.pid.lock
+
+# ===== 可选：老版本的 CODE_WIKI （若不想公开旧文档可打开，但目前是自己做的，直接保留）=====
+# CODE_WIKI.md
