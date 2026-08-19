@@ -1,10 +1,5 @@
-// 简单版：完全复用 answers 表写入逻辑（和 survey.js 保持一致）
-// 然后把 users.join_next_round = 1 设好
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-
-const DB_PATH = path.resolve(__dirname, '..', 'database.sqlite');
-const db = new sqlite3.Database(DB_PATH);
+// 复用统一数据库适配层（SQLite 或 Postgres 自动切换）
+const db = require('./db');
 
 const PATTERNS = {
   // id=1 管理员 (稳重男 1111@qq.com)

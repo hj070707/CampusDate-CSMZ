@@ -10,7 +10,8 @@
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933?logo=node.js&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![Express](https://img.shields.io/badge/Express-4.x-000000?logo=express&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-本地开发-003B57?logo=sqlite&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-线上部署-4169E1?logo=postgresql&logoColor=white)
 ![Tailwind](https://img.shields.io/badge/TailwindCSS-3.x-06B6D4?logo=tailwindcss&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-brightgreen)
 ![Version](https://img.shields.io/badge/Version-0.2.0--完整可运行版-rose)
@@ -62,8 +63,9 @@
                                   │
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        SQLite (database.sqlite)                       │
-│  users · questions · answers · matches                               │
+│       db.js 统一适配层（有 DATABASE_URL → Postgres，否则 SQLite）       │
+│   本地：SQLite (database.sqlite)   ·   线上：Supabase Postgres        │
+│   users · questions · answers · matches                              │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -89,7 +91,8 @@ lover/
 │
 ├─ server/                      # 后端 (Node.js + Express 4)
 │   ├─ server.js                   # 入口：CORS / session / cron 定时 / 路由挂载
-│   ├─ db.js                       # SQLite 模型 + 幂等 addColumn（建表 + 扩字段）
+│   ├─ db.js                       # 统一数据库适配层（SQLite/Postgres 自动切换 + 建表 + 扩字段）
+│   ├─ schema-postgres.sql         # PostgreSQL 建表脚本（线上部署用）
 │   ├─ init-questions.js           # 导入第二代 25 题题库（清空旧 answers/matches）
 │   ├─ match-algo.js               # 核心匹配算法
 │   ├─ middleware/requireAuth.js   # 登录态校验 (req.session.userId)
@@ -364,7 +367,7 @@ git push -u origin main
 
 > 🚨 **重要（2025.07 更新）**：Glitch 官方已于 2025 年 7 月宣布结束项目托管服务（"Until we meet again 👋"），新用户无法注册/新建项目，本方案已**不再使用 Glitch**。
 >
-> Render 新账号会被风控强制要求绑信用卡"防滥用验证"，如果你不想绑卡，下面两套方案都不需要信用卡。
+> Render / Railway 新账号会被风控强制要求绑信用卡"防滥用验证"。下面方案均**真·零绑卡**，且首推方案用 **Supabase Postgres 做数据持久化**（免费 500MB，redeploy / 重启数据不丢）。
 
 ---
 
@@ -395,41 +398,56 @@ git push -u origin main
 
 ---
 
-### 🅰️ 首推方案：Railway + Cloudflare Pages（体验最接近 Render · 额度够面试 2 个月）
+### 🅰️ 首推方案：Supabase Postgres + Koyeb + Cloudflare Pages（数据持久 · 真零绑卡）
 
-**Railway 新用户有 $5 免费信用额度（无需绑卡）**，$5 用完才要求付费或绑卡，对作品集 1–2 个月面试窗口绰绰有余。SQLite 在免费档重启不持久化（跟 Render 一样），但演示完全够用。
+**为什么这套**：Supabase 免费 Postgres 数据库持久化（500MB，redeploy / 重启数据不丢），Koyeb 免费档 Node 托管零绑卡，Cloudflare Pages 前端全球 CDN 零绑卡。三者组合 = 长期可用的作品集 Demo。
+
+> 本项目已做 **SQLite / PostgreSQL 双数据库适配**：本地开发用 SQLite（零配置），线上设环境变量 `DATABASE_URL` 自动切 Postgres，路由代码无需改动。
 
 #### 总体架构
 ```
 用户 → Cloudflare Pages（前端 SPA + 全球 CDN · 零绑卡）
               │
-              └─── fetch(Railway 域名) ──→ Railway（Node.js · $5 免费额度 · 无需绑卡）
+              └─── fetch(Koyeb 域名) ──→ Koyeb（Node.js 后端 · 免费档 · 零绑卡）
+                                              │
+                                              └─── pg 连接 ──→ Supabase Postgres（数据持久 · 500MB 免费）
 ```
 
-#### 第一步：先部署 Railway 后端（拿到 .up.railway.app 域名）
-1. **打开 https://railway.app/new → Sign up with GitHub（零绑卡）**
-2. 进控制台后点 **+ New Project → Deploy from GitHub repo**
-3. 首次会让你授权 GitHub，选 **hj070707/CampusDate-CSMZ**
-4. 仓库导入成功后会**自动开始一次失败的构建**（因为默认从根目录构建，找不到 server/），不要慌 — 点进去这个 Service：
-   - 切 **⚙️ Settings** 标签：
-     | 字段 | 值 |
-     |---|---|
-     | Root Directory | `server` ⚠️ |
-     | Build Command | `npm install && npm run init-db && npm run seed-questions` |
-     | Start Command | `node server.js` |
-   - 切 **Variables** 标签 → Add Variable，加：
-     ```
-     NODE_ENV       = production
-     SESSION_SECRET = 点击右侧 Generate 生成长随机串
-     CORS_ORIGINS   = 留空，等 Cloudflare Pages 域名拿到再填
-     ```
-5. 右上点 **Redeploy**，等 2–4 分钟。构建成功后点 Service 顶部的 **Settings → Networking → Generate Domain**（或 Public Networking）生成公网域名，形如：
+#### 第一步：创建 Supabase Postgres 数据库（拿到 DATABASE_URL）
+1. **打开 https://supabase.com → Start your project → Sign up with GitHub（零绑卡）**
+2. New Project → 命名 `campusdate`，选离国内近的 Region（Singapore），设置数据库密码（记好，待会要用）
+3. 等 2 分钟项目初始化完成，进入项目左侧 **Project Settings → Database**
+4. 找到 **Connection string** 区块，复制 **URI** 形如：
    ```
-   campusdate-csmz-production.up.railway.app
+   postgresql://postgres.[项目-ref]:[YOUR-PASSWORD]@aws-0-[region].pooler.supabase.com:6543/postgres
    ```
-   👉 **把这个域名复制下来**，浏览器访问 `https://<这个域名>/api/school/info`，返回 JSON 含"长沙民政职业技术学院"就成功了 ✅。
+   👉 把 `[YOUR-PASSWORD]` 替换成你设的数据库密码。**这串就是 `DATABASE_URL`**，先存着。
+5. 进入左侧 **SQL Editor** → New query → 粘贴项目根目录 `server/schema-postgres.sql` 全部内容 → **Run**。建出 users / questions / answers / matches 四张表。
 
-#### 第二步：部署 Cloudflare Pages 前端（拿到 .pages.dev 域名）
+#### 第二步：部署 Koyeb 后端（拿到 .koyeb.app 域名）
+1. **https://app.koyeb.com/auth/signup → GitHub 登录** → Create Web Service
+2. Source 选 **GitHub**，Repository 选 `hj070707/CampusDate-CSMZ`，Branch `main`
+3. Instance 配置：
+   | 字段 | 值 |
+   |---|---|
+   | Instance size | **Starter（免费档，0.1 vCPU / 512MB 足够）** |
+   | Regions | **Tokyo（日本，离国内近）** |
+   | Builder | **Nixpacks**（自动识别 Node.js）|
+   | Build command | `cd server && npm install` |
+   | Run command | `node server/server.js`（从根目录启动）|
+4. Environment variables（点 Add Variable 逐条加）：
+   ```
+   NODE_ENV       = production
+   DATABASE_URL   = postgresql://postgres.[ref]:[密码]@aws-0-[region].pooler.supabase.com:6543/postgres
+   DATABASE_SSL   = true
+   SESSION_SECRET = 点 Generate 生成长随机串
+   CORS_ORIGINS   = 留空，等 Cloudflare Pages 域名拿到再填
+   PORT           = 8080
+   ```
+5. Advanced 勾 **Publicly accessible** → Deploy，3–5 分钟拿到 `<自定义名>-<hash>.koyeb.app`
+6. 浏览器访问 `https://<域名>/api/school/info`，返回 JSON 含"长沙民政职业技术学院"即后端就绪 ✅
+
+#### 第三步：部署 Cloudflare Pages 前端（拿到 .pages.dev 域名）
 1. **打开 https://pages.cloudflare.com → Create a project → Connect to Git（GitHub 授权，零绑卡）**
 2. 选仓库 `hj070707/CampusDate-CSMZ` → Begin setup：
    | 字段 | 填什么 |
@@ -439,39 +457,49 @@ git push -u origin main
    | Build output directory | `client/dist` |
 3. Environment variables (advanced) → Add：
    ```
-   VITE_API_URL = https://<你刚才拿到的 Railway 域名>    （末尾不要加 /）
+   VITE_API_URL = https://<你刚才拿到的 Koyeb 域名>    （末尾不要加 /）
    ```
-4. Save and Deploy，2 分钟拿到 `https://campusdate-csmz.pages.dev`（项目名冲突换个后缀就行）。
+4. Save and Deploy，2 分钟拿到 `https://campusdate-csmz.pages.dev`（项目名冲突换后缀）。
 
-#### 第三步：收尾加固
-1. 回到 Railway → Variables，`CORS_ORIGINS` 填：`https://campusdate-csmz.pages.dev,http://localhost:5173`，然后 Redeploy 生效。
-2. 可选防休眠：**https://uptimerobot.com**（免费账户）→ 新建 HTTP Monitor，URL 填 `https://<Railway域名>/api/school/kpi`，Interval 选 Every 30 分钟。
-3. 把两个链接贴到作品集：
+#### 第四步：初始化测试数据 + 收尾加固
+1. **初始化题目和测试账号（只需做一次，数据存 Supabase 永久不丢）**：在 Koyeb 控制台 → Service → **Terminal** 执行：
+   ```bash
+   cd server
+   node init-questions.js       # 导入 25 题题库到 Postgres
+   node seed-3users-survey.js   # 导入 3 个测试账号 + 示例问卷
+   ```
+   > ✅ 这步只需做一次！以后 Koyeb redeploy / 重启，数据都从 Supabase 读，不丢。
+2. 回到 Koyeb → Variables，`CORS_ORIGINS` 填：`https://campusdate-csmz.pages.dev,http://localhost:5173`，Redeploy 生效。
+3. 可选防休眠：**https://uptimerobot.com**（免费账户）→ 新建 HTTP Monitor，URL 填 `https://<Koyeb域名>/api/school/info`，Interval 选 Every 30 分钟。
+4. 把两个链接贴到作品集：
    - 前端 Demo：`https://campusdate-csmz.pages.dev`
    - GitHub 源码：`https://github.com/hj070707/CampusDate-CSMZ`
 
 ---
 
-### 🅱️ 零绑卡备选：Koyeb + Cloudflare Pages（真·零绑卡）
+### 🅱️ 备选方案：Railway + Cloudflare Pages（SQLite 非持久 · $5 免费额度）
 
-如果 Railway 注册也被风控了，用 **Koyeb**：它有免费档（Starter），**100% 不需要绑卡**，是目前零绑卡全栈部署最稳的。
+如果不想用 Supabase（只想快速拿个链接演示），用 **Railway**：新用户 $5 免费信用额度，无需绑卡。**但 SQLite 在免费档 redeploy 会清空**，适合短期演示。
 
-#### 后端（Koyeb）
-1. **https://app.koyeb.com/auth/signup → GitHub 登录** → 进控制台后 **Create Web Service**
-2. Source 选 **GitHub**，Repository 选 `hj070707/CampusDate-CSMZ`，Branch `main`
-3. Instance：
+#### 后端（Railway）
+1. **https://railway.app/new → Sign up with GitHub（零绑卡）**
+2. + New Project → Deploy from GitHub repo → 选 `hj070707/CampusDate-CSMZ`
+3. 仓库导入后会自动开始一次**失败构建**（默认从根目录构建找不到 server/）→ 点进 Service → Settings：
    | 字段 | 值 |
    |---|---|
-   | Instance size | **Starter（免费档，0.1 vCPU / 512MB 足够）** |
-   | Regions | 选 **Tokyo（日本，离国内近）** |
-   | Builder | **Nixpacks**（会自动识别 Node.js）|
-   | **Build command** | `cd server && npm install && npm run init-db && npm run seed-questions && cd ..` |
-   | **Run command** | `node server/server.js`（注意从根起，Nixpacks 会在根目录启动）|
-   | Environment variables | `NODE_ENV=production`、`SESSION_SECRET=<长随机串>`、`CORS_ORIGINS=`、`PORT=8080` |
-4. Advanced 里勾 **Publicly accessible**，点 **Deploy**，3–5 分钟拿到 `<自定义名>-<hash>.koyeb.app`，访问 `/api/school/info` 验证。
-5. 把这个域名填到 Cloudflare Pages 的 `VITE_API_URL`。
+   | Root Directory | `server` ⚠️ |
+   | Build Command | `npm install && npm run init-db && npm run seed-questions` |
+   | Start Command | `node server.js` |
+4. Variables 标签加：
+   ```
+   NODE_ENV       = production
+   SESSION_SECRET = 点 Generate 生成长随机串
+   CORS_ORIGINS   = 留空，等 Cloudflare Pages 域名拿到再填
+   ```
+5. Redeploy，2–4 分钟。Settings → Networking → Generate Domain 拿到 `xxx.up.railway.app`，访问 `/api/school/info` 验证。
+6. 把域名填到 Cloudflare Pages 的 `VITE_API_URL`（同首推方案第三步）。
 
-> 📝 Koyeb Starter 档每月有免费小时数，用完会自动休眠，不会扣费。SQLite 同样非持久化，演示够用。
+> 📝 Railway $5 用完才会要求绑卡。SQLite 非持久化，redeploy 测试账号会丢，需重新在 Shell 跑 `cd server && node seed-3users-survey.js`。
 
 ---
 
@@ -492,6 +520,7 @@ Render 新用户现在强制"绑信用卡做防滥用验证"（仅验证，不�
 | `test02` | `123456` | 普通用户 |
 | `admin` | `Admin@123456` | 超级管理员（访问 `/admin` 后台） |
 
-> Railway / Koyeb 的免费档 SQLite 会在 redeploy / 重启时清空，如果注册完测试账号没了，是正常的 —— 重新在各自平台的 Shell/Console 里跑 `cd server && node server/seed-3users-survey.js` 即可。**这点面试时一定要说**，反而能体现你清楚"免费平台持久化"这个工程问题。
+> 🟢 **首推方案（Supabase Postgres）**：数据持久化，测试账号只需在第四步初始化一次，redeploy / 重启都不丢。
+> 🟡 **备选方案（Railway / Koyeb + SQLite）**：免费档 SQLite 在 redeploy / 重启会清空，账号没了是正常的 —— 重新在 Shell/Console 跑 `cd server && node seed-3users-survey.js` 即可。**这点面试时一定要说**，反而能体现你清楚"免费平台持久化"这个工程问题。
 
 ---

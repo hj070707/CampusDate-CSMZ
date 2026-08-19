@@ -76,17 +76,21 @@ router.post('/answers', requireAuth, (req, res) => {
         : 0;
     }
 
-    db.run('DELETE FROM answers WHERE user_id = ?', [userId], function(err) {
+    // 先删除旧答案，再用 prepare 批量插入新答案
+    db.run('DELETE FROM answers WHERE user_id = ?', [userId], async function(err) {
       if (err) return res.status(500).json({ error: err.message });
-      
+
       const stmt = db.prepare(
         'INSERT INTO answers (user_id, question_id, answer, dimension_scores) VALUES (?, ?, ?, ?)'
       );
       for (const a of answersToInsert) {
         stmt.run(userId, a.questionId, a.answer, JSON.stringify(normalizedScores));
       }
-      stmt.finalize();
-      
+      // 等待所有插入完成（pg 下 finalize 是异步的）
+      await new Promise((resolve, reject) => {
+        stmt.finalize((err) => err ? reject(err) : resolve());
+      });
+
       res.json({
         success: true,
         message: '问卷提交成功',

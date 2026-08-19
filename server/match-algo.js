@@ -234,38 +234,43 @@ async function runMatching() {
           return resolve({ message: '没有合适的匹配对（可能是都被近3轮匹配过滤了，下周再来吧）', matched: 0, roundId });
         }
 
-        db.run('DELETE FROM matches WHERE round_id = ?', [roundId], function (_err) {
-          const stmt = db.prepare(
-            `INSERT INTO matches (user_a_id, user_b_id, score, round_id, reasons)
-             VALUES (?, ?, ?, ?, ?)`
-          );
+        // 先清空本轮旧匹配（如果同一轮重新跑）
+        await new Promise((resolve) => {
+          db.run('DELETE FROM matches WHERE round_id = ?', [roundId], () => resolve());
+        });
 
-          for (const r of results) {
-            stmt.run(r.userA_id, r.userB_id, r.score, r.round_id, JSON.stringify(r.reasons));
-          }
-          stmt.finalize();
+        // 批量插入匹配结果（用 prepare+stmt.run，兼容 SQLite 和 Postgres）
+        const stmt = db.prepare(
+          `INSERT INTO matches (user_a_id, user_b_id, score, round_id, reasons)
+           VALUES (?, ?, ?, ?, ?)`
+        );
 
-          // 更新用户 last_match_round，并把 join_next_round 重置为 1（下周默认继续参与，可手动关闭）
-          const updStmt = db.prepare(
-            `UPDATE users SET last_match_round = ?, join_next_round = 1 WHERE id = ?`
-          );
-          const touchedUserIds = new Set();
-          for (const r of results) {
-            if (!touchedUserIds.has(r.userA_id)) { updStmt.run(roundId, r.userA_id); touchedUserIds.add(r.userA_id); }
-            if (!touchedUserIds.has(r.userB_id)) { updStmt.run(roundId, r.userB_id); touchedUserIds.add(r.userB_id); }
-          }
-          updStmt.finalize();
+        for (const r of results) {
+          stmt.run(r.userA_id, r.userB_id, r.score, r.round_id, JSON.stringify(r.reasons));
+        }
+        // 等待所有插入完成（pg 下 finalize 是异步的，SQLite 下也兼容）
+        await new Promise((resolve) => stmt.finalize(resolve));
 
-          resolve({
-            message: `[CSMZ 民政学院匹配] 本轮完成！共匹配 ${results.length} 对，匹配轮次 #${roundId}`,
-            matched: results.length,
-            roundId,
-            pairs: results.map(r => ({
-              userA: userScores.find(u => u.id === r.userA_id)?.name,
-              userB: userScores.find(u => u.id === r.userB_id)?.name,
-              score: r.score
-            }))
-          });
+        // 更新用户 last_match_round，并把 join_next_round 重置为 1
+        const updStmt = db.prepare(
+          `UPDATE users SET last_match_round = ?, join_next_round = 1 WHERE id = ?`
+        );
+        const touchedUserIds = new Set();
+        for (const r of results) {
+          if (!touchedUserIds.has(r.userA_id)) { updStmt.run(roundId, r.userA_id); touchedUserIds.add(r.userA_id); }
+          if (!touchedUserIds.has(r.userB_id)) { updStmt.run(roundId, r.userB_id); touchedUserIds.add(r.userB_id); }
+        }
+        await new Promise((resolve) => updStmt.finalize(resolve));
+
+        resolve({
+          message: `[CSMZ 民政学院匹配] 本轮完成！共匹配 ${results.length} 对，匹配轮次 #${roundId}`,
+          matched: results.length,
+          roundId,
+          pairs: results.map(r => ({
+            userA: userScores.find(u => u.id === r.userA_id)?.name,
+            userB: userScores.find(u => u.id === r.userB_id)?.name,
+            score: r.score
+          }))
         });
       }
     );

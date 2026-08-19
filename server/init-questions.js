@@ -1,8 +1,6 @@
-const sqlite3 = require('sqlite3').verbose();
+// 复用统一数据库适配层（SQLite 或 Postgres 自动切换）
+const db = require('./db');
 const path = require('path');
-
-const DB_PATH = path.join(__dirname, '..', 'database.sqlite');
-const db = new sqlite3.Database(DB_PATH);
 
 // ============================================================
 //  CSMZ 校园匹配 · 第二代问卷题库
@@ -357,10 +355,15 @@ const questions = [
 
 function initQuestions() {
   // 先清空旧题目 + 旧答案（因为维度分数计算方式变了）
-  db.serialize(() => {
+  db.serialize(async () => {
     db.run('DELETE FROM answers');
     db.run('DELETE FROM questions');
-    db.run('DELETE FROM sqlite_sequence WHERE name="questions"');
+    // 重置自增 ID：SQLite 用 sqlite_sequence，Postgres 用 ALTER SEQUENCE
+    if (db.isPostgres) {
+      db.run('ALTER SEQUENCE questions_id_seq RESTART WITH 1');
+    } else {
+      db.run('DELETE FROM sqlite_sequence WHERE name="questions"');
+    }
     db.run('DELETE FROM matches'); // 旧匹配结果也清空，因为 reasons 格式可能变
 
     const stmt = db.prepare(`
@@ -379,34 +382,34 @@ function initQuestions() {
       );
     }
 
-    stmt.finalize();
-
-    db.get('SELECT COUNT(*) as count FROM questions', (err, row) => {
-      if (err) {
-        console.error('初始化失败:', err);
-      } else {
-        console.log(`✅ 第二代问卷初始化完成！共导入 ${row.count} 道题目`);
-        console.log('');
-        console.log('📊 维度分布:');
-        const dims = {};
-        for (const q of questions) {
-          const label = {
-            values: '价值观',
-            personality: '性格特质',
-            lifestyle: '生活方式',
-            communication: '情感沟通',
-            future: '未来规划'
-          }[q.category];
-          dims[label] = (dims[label] || 0) + 1;
+    stmt.finalize(() => {
+      db.get('SELECT COUNT(*) as count FROM questions', (err, row) => {
+        if (err) {
+          console.error('初始化失败:', err);
+        } else {
+          console.log(`✅ 第二代问卷初始化完成！共导入 ${row.count} 道题目`);
+          console.log('');
+          console.log('📊 维度分布:');
+          const dims = {};
+          for (const q of questions) {
+            const label = {
+              values: '价值观',
+              personality: '性格特质',
+              lifestyle: '生活方式',
+              communication: '情感沟通',
+              future: '未来规划'
+            }[q.category];
+            dims[label] = (dims[label] || 0) + 1;
+          }
+          for (const [k, v] of Object.entries(dims)) {
+            console.log(`   ${k}: ${v} 题`);
+          }
+          console.log('');
+          console.log('🧹 已同步清除旧 answers / matches（维度算法已升级）');
+          console.log('💡 请重新填写问卷以获得准确的维度评分');
         }
-        for (const [k, v] of Object.entries(dims)) {
-          console.log(`   ${k}: ${v} 题`);
-        }
-        console.log('');
-        console.log('🧹 已同步清除旧 answers / matches（维度算法已升级）');
-        console.log('💡 请重新填写问卷以获得准确的维度评分');
-      }
-      db.close();
+        db.close();
+      });
     });
   });
 }

@@ -119,9 +119,11 @@ cron.schedule(MATCHING_CRON, async () => {
   timezone: 'Asia/Shanghai'
 });
 
-const server = app.listen(PORT, () => {
-  const stamp = new Date().toLocaleString('zh-CN', { hour12: false });
-  console.log(`
+// 启动前先等数据库 schema 初始化完成（Postgres 模式需要建表）
+db.ready.then(() => {
+  const server = app.listen(PORT, () => {
+    const stamp = new Date().toLocaleString('zh-CN', { hour12: false });
+    console.log(`
 ╔═══════════════════════════════════════════════════════╗
 ║          🌸  CampusDate · ${SCHOOL.name}  🌸           ║
 ║          (CSMZ 民政学院专属校园匹配平台 v0.2)           ║
@@ -131,8 +133,12 @@ const server = app.listen(PORT, () => {
 ║  🕐 揭晓时间  : 每周${SCHOOL.revealWeekday} ${SCHOOL.revealTimeText}
 ║  ⏱  Cron     : ${MATCHING_CRON}  (Asia/Shanghai)
 ║  🕵 启动时间  : ${stamp}
+║  📦 数据库   : ${db.isPostgres ? 'PostgreSQL（云端持久化）' : 'SQLite（本地文件）'}
 ╚═══════════════════════════════════════════════════════╝
   `);
+  });
+  module.exports = { server, SCHOOL };
+}).catch(err => {
+  console.error('[启动失败] 数据库初始化出错:', err.message);
+  process.exit(1);
 });
-
-module.exports = { server, SCHOOL };
